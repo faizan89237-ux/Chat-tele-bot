@@ -9,7 +9,7 @@ class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bulletproof Multi-AI Telegram Bot is running 24/7!")
+        self.wfile.write(b"Multi-AI Telegram Bot is running 24/7!")
 
 def run_server():
     port = int(os.environ.get("PORT", 10000))
@@ -27,27 +27,16 @@ DEEPSEEK_API_KEY = "sk-c87b8596a0e24072b170f85a60d27f21"
 OPENAI_API_KEY = "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"
 
 BASE_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
-user_selected_model = {}
 
-def send_message(chat_id, text, reply_markup=None, parse_mode="Markdown"):
+def send_message(chat_id, text, parse_mode="Markdown"):
     url = f"{BASE_URL}/sendMessage"
     payload = {"chat_id": chat_id, "text": text, "parse_mode": parse_mode}
-    if reply_markup:
-        payload["reply_markup"] = reply_markup
     try:
         requests.post(url, json=payload, timeout=15)
     except Exception as e:
         print(f"Telegram send error: {e}")
 
-def send_photo(chat_id, photo_url, caption=""):
-    url = f"{BASE_URL}/sendPhoto"
-    payload = {"chat_id": chat_id, "photo": photo_url, "caption": caption}
-    try:
-        requests.post(url, json=payload, timeout=25)
-    except Exception as e:
-        print(f"Telegram photo error: {e}")
-
-# --- INDIVIDUAL SAFE API FUNCTIONS ---
+# --- INDIVIDUAL SAFE AI FUNCTIONS ---
 def call_groq(text):
     try:
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
@@ -84,58 +73,25 @@ def call_chatgpt(text):
         print(f"ChatGPT exception: {e}")
     return None
 
-def call_image_generation(text):
-    try:
-        headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
-        payload = {"model": "dall-e-3", "prompt": text, "size": "1024x1024", "n": 1}
-        res = requests.post("https://api.openai.com/v1/images/generations", json=payload, headers=headers, timeout=35)
-        data = res.json()
-        if "data" in data and len(data["data"]) > 0:
-            return data["data"][0]["url"]
-    except Exception as e:
-        print(f"Image exception: {e}")
-    return None
-
-# --- CRASH-PROOF MULTI-MODEL FALLBACK HANDLER ---
-def get_ai_response(user_id, text):
-    model = user_selected_model.get(user_id, "groq")
-    
-    # Handle Image Generation Mode
-    if model == "image":
-        img_url = call_image_generation(text)
-        if img_url:
-            return {"type": "photo", "url": img_url, "caption": f"🎨 **DALL-E 3 Image:** {text}"}
-        else:
-            return {"type": "text", "text": "❌ Image generation failed. Please try a different description."}
-
-    # Sequence with automatic fallbacks to ensure zero crashes
-    sequence = []
-    if model == "groq":
-        sequence = [("⚡ **Groq (Llama):**", call_groq), ("🚀 **DeepSeek (Backup):**", call_deepseek), ("🧠 **ChatGPT (Backup):**", call_chatgpt)]
-    elif model == "deepseek":
-        sequence = [("🚀 **DeepSeek:**", call_deepseek), ("⚡ **Groq (Backup):**", call_groq), ("🧠 **ChatGPT (Backup):**", call_chatgpt)]
-    elif model == "chatgpt":
-        sequence = [("🧠 **ChatGPT:**", call_chatgpt), ("⚡ **Groq (Backup):**", call_groq), ("🚀 **DeepSeek (Backup):**", call_deepseek)]
+# --- CRASH-PROOF AUTO-SWITCHING FALLBACK HANDLER ---
+def get_ai_response(text):
+    # Sequence: Groq (Fastest) -> DeepSeek -> ChatGPT
+    sequence = [
+        ("⚡ **Groq AI:**", call_groq),
+        ("🚀 **DeepSeek:**", call_deepseek),
+        ("🧠 **ChatGPT:**", call_chatgpt)
+    ]
 
     for tag, func in sequence:
         reply = func(text)
         if reply:
-            return {"type": "text", "text": f"{tag}\n\n{reply}"}
+            return f"{tag}\n\n{reply}"
 
-    return {"type": "text", "text": "❌ Sabhi AI models temporary busy hain. Thodi der baad dobara koshish karein."}
+    return "❌ Sabhi AI models temporary busy hain. Thodi der baad dobara koshish karein."
 
 def main():
     print("🤖 Bulletproof Multi-AI Telegram Bot is running smoothly...")
     offset = 0
-    
-    model_keyboard = {
-        "inline_keyboard": [
-            [{"text": "⚡ Groq", "callback_data": "model_groq"},
-             {"text": "🚀 DeepSeek", "callback_data": "model_deepseek"}],
-            [{"text": "🧠 ChatGPT", "callback_data": "model_chatgpt"},
-             {"text": "🎨 Image Gen", "callback_data": "model_image"}]
-        ]
-    }
 
     while True:
         try:
@@ -145,48 +101,22 @@ def main():
             
             if "result" in data:
                 for update in data["result"]:
-                    # Crucial offset update to prevent loops and duplicate messages
+                    # Crucial: Immediately advance offset to prevent loops or double replies
                     offset = update["update_id"] + 1
                     
-                    if "callback_query" in update:
-                        cq = update["callback_query"]
-                        user_id = cq["from"]["id"]
-                        chat_id = cq["message"]["chat"]["id"]
-                        data_val = cq["data"]
-                        
-                        if data_val == "model_groq":
-                            user_selected_model[user_id] = "groq"
-                            send_message(chat_id, "✅ **Model Switched:** ⚡ Groq active hai!")
-                        elif data_val == "model_deepseek":
-                            user_selected_model[user_id] = "deepseek"
-                            send_message(chat_id, "✅ **Model Switched:** 🚀 DeepSeek active hai!")
-                        elif data_val == "model_chatgpt":
-                            user_selected_model[user_id] = "chatgpt"
-                            send_message(chat_id, "✅ **Model Switched:** 🧠 ChatGPT active hai!")
-                        elif data_val == "model_image":
-                            user_selected_model[user_id] = "image"
-                            send_message(chat_id, "🎨 **Mode Switched:** Image Generation active hai!\nJo tasveer banvani hai uska description bhejen.")
-                        continue
-
                     if "message" in update and "text" in update["message"]:
                         chat_id = update["message"]["chat"]["id"]
-                        user_id = update["message"]["from"]["id"]
                         text = update["message"]["text"]
                         
                         if text == "/start":
-                            user_selected_model[user_id] = "groq"
                             welcome_msg = (
-                                "👋 **Welcome to your Bulletproof Multi-AI Bot!**\n\n"
-                                "Current Active Model: ⚡ **Groq**\n\n"
-                                "Neeche diye gaye buttons se apna model ya image mode select karein:"
+                                "👋 **Welcome to your Multi-AI Bot!**\n\n"
+                                "Bot पूरी तरह तैयार है। अब आप पढ़ाई, कोडिंग या कोई भी सवाल पूछ सकते हैं—जवाब बिल्कुल सटीक और एक बार में मिलेगा!"
                             )
-                            send_message(chat_id, welcome_msg, reply_markup=model_keyboard)
+                            send_message(chat_id, welcome_msg)
                         else:
-                            result = get_ai_response(user_id, text)
-                            if result["type"] == "photo":
-                                send_photo(chat_id, result["url"], caption=result["caption"])
-                            else:
-                                send_message(chat_id, result["text"])
+                            reply = get_ai_response(text)
+                            send_message(chat_id, reply)
                                 
         except Exception as e:
             print(f"Polling loop error: {e}")
