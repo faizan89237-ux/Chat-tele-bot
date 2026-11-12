@@ -20,7 +20,7 @@ server_thread = Thread(target=run_server)
 server_thread.daemon = True
 server_thread.start()
 
-# --- VERIFIED API KEYS SETUP ---
+# --- API KEYS SETUP ---
 TELEGRAM_TOKEN = "9026606056:AAHfAsmSJgVQ_d5fceopkINUDyJv39BEXag"
 GROQ_API_KEY = "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"
 DEEPSEEK_API_KEY = "sk-c87b8596a0e24072b170f85a60d27f21"
@@ -36,13 +36,14 @@ def send_message(chat_id, text, parse_mode="Markdown"):
     except Exception as e:
         print(f"Telegram send error: {e}")
 
-# --- INDIVIDUAL SAFE AI FUNCTIONS ---
+# --- INDIVIDUAL AI FUNCTIONS WITH ERROR LOGGING ---
 def call_groq(text):
     try:
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
         payload = {"model": "llama-3.1-8b-instant", "messages": [{"role": "user", "content": text}]}
         res = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers, timeout=25)
         data = res.json()
+        print("Groq Response:", data)
         if "choices" in data:
             return data["choices"][0]["message"]["content"]
     except Exception as e:
@@ -55,6 +56,7 @@ def call_deepseek(text):
         payload = {"model": "deepseek-chat", "messages": [{"role": "user", "content": text}]}
         res = requests.post("https://api.deepseek.com/chat/completions", json=payload, headers=headers, timeout=25)
         data = res.json()
+        print("DeepSeek Response:", data)
         if "choices" in data:
             return data["choices"][0]["message"]["content"]
     except Exception as e:
@@ -65,17 +67,18 @@ def call_chatgpt(text):
     try:
         headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
         payload = {"model": "gpt-4o-mini", "messages": [{"role": "user", "content": text}]}
+        res = requests.post("https://api.openai.com/v1/images/generations", json=payload, headers=headers, timeout=25) # Note: endpoint fallback check
         res = requests.post("https://api.openai.com/v1/chat/completions", json=payload, headers=headers, timeout=25)
         data = res.json()
+        print("ChatGPT Response:", data)
         if "choices" in data:
             return data["choices"][0]["message"]["content"]
     except Exception as e:
         print(f"ChatGPT exception: {e}")
     return None
 
-# --- CRASH-PROOF AUTO-SWITCHING FALLBACK HANDLER ---
+# --- FALLBACK HANDLER ---
 def get_ai_response(text):
-    # Sequence: Groq (Fastest) -> DeepSeek -> ChatGPT
     sequence = [
         ("⚡ **Groq AI:**", call_groq),
         ("🚀 **DeepSeek:**", call_deepseek),
@@ -87,10 +90,10 @@ def get_ai_response(text):
         if reply:
             return f"{tag}\n\n{reply}"
 
-    return "❌ Sabhi AI models temporary busy hain. Thodi der baad dobara koshish karein."
+    return "❌ Sabhi AI models temporary busy hain. (Render Logs check karein ki kaun sa error aa raha hai)."
 
 def main():
-    print("🤖 Bulletproof Multi-AI Telegram Bot is running smoothly...")
+    print("🤖 Telegram Bot started successfully...")
     offset = 0
 
     while True:
@@ -101,7 +104,6 @@ def main():
             
             if "result" in data:
                 for update in data["result"]:
-                    # Crucial: Immediately advance offset to prevent loops or double replies
                     offset = update["update_id"] + 1
                     
                     if "message" in update and "text" in update["message"]:
@@ -109,11 +111,7 @@ def main():
                         text = update["message"]["text"]
                         
                         if text == "/start":
-                            welcome_msg = (
-                                "👋 **Welcome to your Multi-AI Bot!**\n\n"
-                                "Bot पूरी तरह तैयार है। अब आप पढ़ाई, कोडिंग या कोई भी सवाल पूछ सकते हैं—जवाब बिल्कुल सटीक और एक बार में मिलेगा!"
-                            )
-                            send_message(chat_id, welcome_msg)
+                            send_message(chat_id, "👋 **Bot is active and ready!**\nSawal bhejen:")
                         else:
                             reply = get_ai_response(text)
                             send_message(chat_id, reply)
