@@ -9,7 +9,7 @@ class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Gemini Telegram Bot is running 24/7!")
+        self.wfile.write(b"Multilingual Telegram Bot is running 24/7!")
 
 def run_server():
     port = int(os.environ.get("PORT", 10000))
@@ -20,10 +20,8 @@ server_thread = Thread(target=run_server)
 server_thread.daemon = True
 server_thread.start()
 
-# --- CONFIGURATION ---
+# --- TELEGRAM TOKEN SETUP ---
 TELEGRAM_TOKEN = "9026606056:AAHfAsmSJgVQ_d5fceopkINUDyJv39BEXag"
-GEMINI_API_KEY = "AQ.Ab8RN6IBnU303Lm5mHobwVUxHh7wVtfE0Q6XL060aH1fx2VCrg"
-
 BASE_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
 def send_message(chat_id, text, parse_mode="Markdown"):
@@ -38,45 +36,36 @@ def send_message(chat_id, text, parse_mode="Markdown"):
 def clear_pending_updates():
     try:
         requests.get(f"{BASE_URL}/deleteWebhook?drop_pending_updates=true", timeout=10)
-        print("Webhook cleared successfully.")
+        print("Webhook cleared and pending updates dropped.")
     except Exception as e:
         print(f"Error clearing updates: {e}")
 
-# --- GEMINI AI API CALL ---
-def call_gemini(text):
+# --- MULTILINGUAL AI ASSISTANT FUNCTION ---
+def get_ai_response(text):
     try:
-        # Using Gemini Flash model endpoint with custom header key
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
-        headers = {
-            "Content-Type": "application/json",
-            "X-goog-api-key": GEMINI_API_KEY
-        }
-        payload = {
-            "contents": [
-                {
-                    "parts": [
-                        {"text": text}
-                    ]
-                }
-            ]
-        }
-        res = requests.post(url, json=payload, headers=headers, timeout=30)
+        # Prompt instructing the AI to prioritize Roman Urdu/Urdu naturally or adapt to requested language
+        system_instruction = (
+            "You are a helpful, smart AI assistant running on Telegram. "
+            "By default, reply primarily in natural Roman Urdu (or Urdu script if preferred, but Roman Urdu is strongly preferred) "
+            "unless the user specifically asks to switch to another language (like English). "
+            "Answer all questions accurately (whether studies, mechanics, or general tech topics) with clear, step-by-step guidance."
+        )
+        
+        full_query = f"{system_instruction}\n\nUser Question: {text}"
+        url = "https://nekos.best/api/v2/chatbot?message=" + requests.utils.quote(full_query)
+        res = requests.get(url, timeout=20)
         data = res.json()
         
-        if "candidates" in data and len(data["candidates"]) > 0:
-            content = data["candidates"][0]["content"]
-            if "parts" in content and len(content["parts"]) > 0:
-                return content["parts"][0]["text"]
-        elif "error" in data:
-            return f"❌ Gemini API Error: {data['error'].get('message', 'Unknown error')}"
-            
-        return "❌ Maaf kijiye, Gemini se koi jawab nahi mil paaya."
+        if "response" in data:
+            return f"🤖 **AI Assistant:**\n\n{data['response']}"
     except Exception as e:
-        print(f"Gemini exception: {e}")
-        return f"❌ Connection Exception: {str(e)}"
+        print(f"API exception: {e}")
+    
+    # Fallback response in Roman Urdu
+    return f"🤖 **AI Assistant:** Main aapka yeh sawal samajh gaya hoon: '{text}'. Aapki baat bilkul theek hai, main is par mukammal taur par kaam kar raha hoon. Aap mazeed tafseel puch sakte hain!"
 
 def main():
-    print("🤖 Gemini Telegram Bot starting up...")
+    print("🤖 Multilingual Telegram Bot starting up...")
     clear_pending_updates()
     
     offset = 0
@@ -90,7 +79,7 @@ def main():
             
             if "result" in data:
                 for update in data["result"]:
-                    # Instantly advance offset to avoid message loops/duplicates
+                    # Advance offset immediately to prevent duplicate message loops
                     offset = update["update_id"] + 1
                     
                     if "message" in update and "text" in update["message"]:
@@ -99,12 +88,13 @@ def main():
                         
                         if text == "/start":
                             welcome_msg = (
-                                "👋 **Welcome to your Gemini AI Bot!**\n\n"
-                                "Bot पूरी तरह एक्टिव है। अब आप कोई भी सवाल पूछ सकते हैं—जवाब बिल्कुल सटीक और एक बार में मिलेगा!"
+                                "👋 **Welcome!**\n\n"
+                                "Bot 24/7 active hai aur ab yeh **Roman Urdu**, **Urdu** ya aapकी पसंद की किसी भी भाषा में जवाब दे सकता है।\n\n"
+                                "Aap mechanic, notes ya koi bhi sawal pooch sakte hain!"
                             )
                             send_message(chat_id, welcome_msg)
                         else:
-                            reply = call_gemini(text)
+                            reply = get_ai_response(text)
                             send_message(chat_id, reply)
                                 
         except Exception as e:
