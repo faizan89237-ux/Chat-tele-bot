@@ -40,22 +40,27 @@ def clear_pending_updates():
     except Exception as e:
         print(f"Error clearing updates: {e}")
 
-# --- OPEN SOURCE AI ASSISTANT FUNCTION (FIXED) ---
+# --- AI ASSISTANT FUNCTION (ONE-TIME RESPONSE) ---
 def get_ai_response(text):
     try:
-        # Sirf user ka text bhejte hain taake nekos.best API error na de
-        url = "https://nekos.best/api/v2/chatbot?message=" + requests.utils.quote(text)
-        res = requests.get(url, timeout=20)
-        data = res.json()
+        system_prompt = (
+            "You are Fazi Study Bot, a helpful AI tutor on Telegram. "
+            "Reply primarily in natural Roman Urdu unless English is requested. "
+            "Give clear, accurate, step-by-step answers for studies, mathematics, mechanics, and general questions."
+        )
         
-        # Check karein ke response theek se aa raha hai
-        if "response" in data and data["response"]:
-            return f"🤖 **Fazi Study Bot:**\n\n{data['response']}"
+        prompt_full = f"{system_prompt}\nUser: {text}"
+        
+        # Pollinations AI ki free public API (No API Key Required)
+        url = f"https://text.pollinations.ai/{requests.utils.quote(prompt_full)}"
+        res = requests.get(url, timeout=25)
+        
+        if res.status_code == 200 and res.text.strip():
+            return f"🤖 **Fazi Study Bot:**\n\n{res.text.strip()}"
             
     except Exception as e:
         print(f"API exception: {e}")
     
-    # Agar kabhi API timeout ho ya error aaye
     return f"🤖 **Fazi Study Bot:** Main aapka yeh sawal samajh gaya hoon: '{text}'. Aap mazeed tafseel pooch sakte hain!"
 
 def main():
@@ -73,8 +78,9 @@ def main():
             
             if "result" in data:
                 for update in data["result"]:
-                    # Advance offset immediately to prevent duplicate message loops
-                    offset = update["update_id"] + 1
+                    # CRITICAL: Offset ko foran update karna taake message bar bar repeat na ho
+                    update_id = update["update_id"]
+                    offset = update_id + 1
                     
                     if "message" in update and "text" in update["message"]:
                         chat_id = update["message"]["chat"]["id"]
@@ -83,11 +89,12 @@ def main():
                         if text == "/start":
                             welcome_msg = (
                                 "👋 **Welcome to Fazi Study Bot!**\n\n"
-                                "Bot 24/7 active hai aur ab yeh aapke **notes**, **maths**, **mechanics** aur baqi tamam sawالات ke liye tayyar hai!\n\n"
+                                "Bot ab bilkul tayyar hai. Har sawal ka जवाब **sirf ek baar** aur bilkul theek milega!\n\n"
                                 "Aap apna koi bhi sawal pooch sakte hain!"
                             )
                             send_message(chat_id, welcome_msg)
                         else:
+                            # Har user message ka response sirf aik hi dafa bheja jaye ga
                             reply = get_ai_response(text)
                             send_message(chat_id, reply)
                                 
