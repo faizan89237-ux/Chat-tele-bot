@@ -9,7 +9,7 @@ class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Telegram Bot is running 24/7!")
+        self.wfile.write(b"Gemini Telegram Bot is running 24/7!")
 
 def run_server():
     port = int(os.environ.get("PORT", 10000))
@@ -20,8 +20,10 @@ server_thread = Thread(target=run_server)
 server_thread.daemon = True
 server_thread.start()
 
-# --- TELEGRAM TOKEN SETUP ---
+# --- CONFIGURATION ---
 TELEGRAM_TOKEN = "9026606056:AAHfAsmSJgVQ_d5fceopkINUDyJv39BEXag"
+GEMINI_API_KEY = "AQ.Ab8RN6IBnU303Lm5mHobwVUxHh7wVtfE0Q6XL060aH1fx2VCrg"
+
 BASE_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
 def send_message(chat_id, text, parse_mode="Markdown"):
@@ -32,24 +34,53 @@ def send_message(chat_id, text, parse_mode="Markdown"):
     except Exception as e:
         print(f"Telegram send error: {e}")
 
-# --- STABLE PUBLIC API FALLBACK (No Key Required / 100% Free) ---
-def get_ai_response(text):
+# --- CLEAR PENDING UPDATES TO PREVENT LOOPING ---
+def clear_pending_updates():
     try:
-        # Using a reliable public conversational API endpoint
-        url = "https://nekos.best/api/v2/chatbot?message=" + requests.utils.quote(text)
-        res = requests.get(url, timeout=20)
-        data = res.json()
-        if "response" in data:
-            return f"🤖 **AI Assistant:**\n\n{data['response']}"
+        requests.get(f"{BASE_URL}/deleteWebhook?drop_pending_updates=true", timeout=10)
+        print("Webhook cleared successfully.")
     except Exception as e:
-        print(f"API exception: {e}")
-    
-    # Ultimate backup static reply so bot never fails
-    return f"🤖 **AI Assistant:** Main aapka yeh sawal samajh gaya hoon: '{text}'. Filhal server par network limit ki wajah se direct AI connect nahi ho pa raha, lekin bot bilkul active aur 24/7 online hai!"
+        print(f"Error clearing updates: {e}")
+
+# --- GEMINI AI API CALL ---
+def call_gemini(text):
+    try:
+        # Using Gemini Flash model endpoint with custom header key
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        headers = {
+            "Content-Type": "application/json",
+            "X-goog-api-key": GEMINI_API_KEY
+        }
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": text}
+                    ]
+                }
+            ]
+        }
+        res = requests.post(url, json=payload, headers=headers, timeout=30)
+        data = res.json()
+        
+        if "candidates" in data and len(data["candidates"]) > 0:
+            content = data["candidates"][0]["content"]
+            if "parts" in content and len(content["parts"]) > 0:
+                return content["parts"][0]["text"]
+        elif "error" in data:
+            return f"❌ Gemini API Error: {data['error'].get('message', 'Unknown error')}"
+            
+        return "❌ Maaf kijiye, Gemini se koi jawab nahi mil paaya."
+    except Exception as e:
+        print(f"Gemini exception: {e}")
+        return f"❌ Connection Exception: {str(e)}"
 
 def main():
-    print("🤖 Telegram Bot is running smoothly...")
+    print("🤖 Gemini Telegram Bot starting up...")
+    clear_pending_updates()
+    
     offset = 0
+    print("🤖 Polling loop started successfully...")
 
     while True:
         try:
@@ -59,7 +90,7 @@ def main():
             
             if "result" in data:
                 for update in data["result"]:
-                    # Prevent duplicate looping messages
+                    # Instantly advance offset to avoid message loops/duplicates
                     offset = update["update_id"] + 1
                     
                     if "message" in update and "text" in update["message"]:
@@ -67,9 +98,13 @@ def main():
                         text = update["message"]["text"]
                         
                         if text == "/start":
-                            send_message(chat_id, "👋 **Welcome!**\nBot 24/7 active hai. Ab aap apna koi bhi sawal bhejein:")
+                            welcome_msg = (
+                                "👋 **Welcome to your Gemini AI Bot!**\n\n"
+                                "Bot पूरी तरह एक्टिव है। अब आप कोई भी सवाल पूछ सकते हैं—जवाब बिल्कुल सटीक और एक बार में मिलेगा!"
+                            )
+                            send_message(chat_id, welcome_msg)
                         else:
-                            reply = get_ai_response(text)
+                            reply = call_gemini(text)
                             send_message(chat_id, reply)
                                 
         except Exception as e:
