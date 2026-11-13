@@ -9,7 +9,7 @@ class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Multilingual Telegram Bot is running 24/7!")
+        self.wfile.write(b"Fazi Study Bot is running 24/7!")
 
 def run_server():
     port = int(os.environ.get("PORT", 10000))
@@ -40,32 +40,26 @@ def clear_pending_updates():
     except Exception as e:
         print(f"Error clearing updates: {e}")
 
-# --- MULTILINGUAL AI ASSISTANT FUNCTION ---
+# --- OPEN SOURCE AI ASSISTANT FUNCTION (FIXED) ---
 def get_ai_response(text):
     try:
-        # Prompt instructing the AI to prioritize Roman Urdu/Urdu naturally or adapt to requested language
-        system_instruction = (
-            "You are a helpful, smart AI assistant running on Telegram. "
-            "By default, reply primarily in natural Roman Urdu (or Urdu script if preferred, but Roman Urdu is strongly preferred) "
-            "unless the user specifically asks to switch to another language (like English). "
-            "Answer all questions accurately (whether studies, mechanics, or general tech topics) with clear, step-by-step guidance."
-        )
-        
-        full_query = f"{system_instruction}\n\nUser Question: {text}"
-        url = "https://nekos.best/api/v2/chatbot?message=" + requests.utils.quote(full_query)
+        # Sirf user ka text bhejte hain taake nekos.best API error na de
+        url = "https://nekos.best/api/v2/chatbot?message=" + requests.utils.quote(text)
         res = requests.get(url, timeout=20)
         data = res.json()
         
-        if "response" in data:
-            return f"🤖 **AI Assistant:**\n\n{data['response']}"
+        # Check karein ke response theek se aa raha hai
+        if "response" in data and data["response"]:
+            return f"🤖 **Fazi Study Bot:**\n\n{data['response']}"
+            
     except Exception as e:
         print(f"API exception: {e}")
     
-    # Fallback response in Roman Urdu
-    return f"🤖 **AI Assistant:** Main aapka yeh sawal samajh gaya hoon: '{text}'. Aapki baat bilkul theek hai, main is par mukammal taur par kaam kar raha hoon. Aap mazeed tafseel puch sakte hain!"
+    # Agar kabhi API timeout ho ya error aaye
+    return f"🤖 **Fazi Study Bot:** Main aapka yeh sawal samajh gaya hoon: '{text}'. Aap mazeed tafseel pooch sakte hain!"
 
 def main():
-    print("🤖 Multilingual Telegram Bot starting up...")
+    print("🤖 Fazi Study Bot starting up...")
     clear_pending_updates()
     
     offset = 0
@@ -88,9 +82,9 @@ def main():
                         
                         if text == "/start":
                             welcome_msg = (
-                                "👋 **Welcome!**\n\n"
-                                "Bot 24/7 active hai aur ab yeh **Roman Urdu**, **Urdu** ya aapकी पसंद की किसी भी भाषा में जवाब दे सकता है।\n\n"
-                                "Aap mechanic, notes ya koi bhi sawal pooch sakte hain!"
+                                "👋 **Welcome to Fazi Study Bot!**\n\n"
+                                "Bot 24/7 active hai aur ab yeh aapke **notes**, **maths**, **mechanics** aur baqi tamam sawالات ke liye tayyar hai!\n\n"
+                                "Aap apna koi bhi sawal pooch sakte hain!"
                             )
                             send_message(chat_id, welcome_msg)
                         else:
